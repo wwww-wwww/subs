@@ -1,4 +1,7 @@
 import os, subprocess, subs, prass, re, argparse, time, shutil
+from ilock import ILock
+
+attachments = ["LT.ttf", "LT_3italic.ttf"]
 
 re_pos = r"(\\pos\(([0-9]+|[0-9]+\.[0-9]+), *([0-9]+|[0-9]+\.[0-9]+)\))"
 re_move = r"(\\move\(([0-9\-,\.]+)\))"
@@ -23,7 +26,7 @@ re_simple = [
 num = lambda n: round(n, 3) if n % 1 else int(n)
 
 
-def scale(src, ref, scale_width, scale_height):
+def scale(src, scale_width, scale_height):
   events = src._find_section(subs.EVENTS_SECTION)
   for event in events.events:
     matches = re.findall(re_draw, event.text)
@@ -92,7 +95,7 @@ def proc(src, ref, out):
   if from_width != to_width or from_height != to_height:
     scale_width = to_width / float(from_width)
     scale_height = to_height / float(from_height)
-    scale(src, ref, scale_width, scale_height)
+    scale(src, scale_width, scale_height)
     src.scale_to_reference(ref)
 
   src.cleanup(False, True, True, False, False, False, False)
@@ -137,12 +140,17 @@ def apply(filename, only, style_source):
 
   mkvmerge = [
     "mkvmerge",
-    "-S",
-    filename,
-    "subs.ass",
     "-o",
     "tmp.mkv",
+    "-S",
+    filename,
+    "--language",
+    "0:eng",
+    "subs.ass",
   ]
+
+  for attachment in attachments:
+    mkvmerge += ["--attach-file", attachment]
 
   r = subprocess.run(mkvmerge)
 
@@ -163,15 +171,17 @@ if __name__ == "__main__":
 
   args = parser.parse_args()
 
-  if os.path.isdir(args.input):
-    print("directory", args.input)
-    for filename in os.listdir(args.input):
-      if os.path.splitext(filename)[1].lower() != ".mkv": continue
-      path = os.path.join(args.input, filename)
-      if os.path.isfile(path):
-        apply(path, args.only, args.style)
-  else:
-    if os.path.splitext(args.input)[1].lower() == ".mkv":
-      apply(args.input, args.only, args.style)
+  print("acquiring lock")
+  with ILock("subs"):
+    if os.path.isdir(args.input):
+      print("directory", args.input)
+      for filename in os.listdir(args.input):
+        if os.path.splitext(filename)[1].lower() != ".mkv": continue
+        path = os.path.join(args.input, filename)
+        if os.path.isfile(path):
+          apply(path, args.only, args.style)
     else:
-      print("input isnt mkv")
+      if os.path.splitext(args.input)[1].lower() == ".mkv":
+        apply(args.input, args.only, args.style)
+      else:
+        print("input isnt mkv")
