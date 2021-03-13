@@ -2,7 +2,7 @@
 import sys, re, subprocess
 
 re_blank = r"^Dialogue.*,.*,.*,.*,.*,.*,.*,.*,.*,({[^}]*})*\\blank$"
-
+re_k0 = r"{\\k0}($|{.+?})"
 
 def main():
   if len(sys.argv) < 2:
@@ -25,7 +25,7 @@ def main():
       continue
 
     line = line.replace("\\blank", "")
-    line = line.replace("{\\k0}", "")
+    line = re.sub(re_k0, r"\1", line)
 
     print(line)
 
